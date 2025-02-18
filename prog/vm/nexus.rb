@@ -9,7 +9,7 @@ require "base64"
 class Prog::Vm::Nexus < Prog::Base
   subject_is :vm
 
-  def self.assemble(public_key, project_id, name: nil, size: "standard-2",
+  def self.assemble(public_key, project_id, customer_aws_account_id, name: nil, size: "standard-2",
     unix_user: "ubi", location: "hetzner-fsn1", boot_image: Config.default_boot_image_name,
     private_subnet_id: nil, nic_id: nil, storage_volumes: nil, boot_disk_index: 0,
     enable_ip4: false, pool_id: nil, arch: "x64", swap_size_bytes: nil,
@@ -81,6 +81,10 @@ class Prog::Vm::Nexus < Prog::Base
           subnet = PrivateSubnet[private_subnet_id]
           raise "Given subnet doesn't exist with the id #{private_subnet_id}" unless subnet
           raise "Given subnet is not available in the given project" unless project.private_subnets.any? { |ps| ps.id == subnet.id }
+          subnet
+        elsif customer_aws_account_id
+          subnet = PrivateSubnetAwsResource[customer_aws_account_id]
+          subnet ||= Prog::Vnet::PrivateSubnetNexus.assemble(project_id, customer_aws_account_id:, location:).subject
           subnet
         else
           project.default_private_subnet(location)
@@ -172,6 +176,10 @@ class Prog::Vm::Nexus < Prog::Base
   end
 
   label def start
+    if vm.location == "aws-us-east-1"
+      hop_launch_instance
+    end
+
     queued_vms = Vm.join(:strand, id: :id).where(:location => vm.location, :arch => vm.arch, Sequel[:strand][:label] => "start")
     begin
       distinct_storage_devices = frame["distinct_storage_devices"] || false
@@ -225,6 +233,14 @@ class Prog::Vm::Nexus < Prog::Base
     clear_stack_storage_volumes
 
     hop_create_unix_user
+  end
+
+  label def launch_instance
+    if retval&.dig("msg") == "instance created"
+      hop_wait_sshable
+    end
+
+    push Prog::Aws::Allocator, {"subject_id" => vm.private_subnets.first.id, "vm_id" => vm.id, "nic_id" => vm.nics.first.id}, :launch_instance
   end
 
   label def create_unix_user
