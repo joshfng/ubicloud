@@ -56,7 +56,7 @@ class Prog::Vnet::SubnetNexus < Prog::Base
   end
 
   label def create_aws_subnet
-    if retval&.dig("msg") == "subnet and nic created"
+    if retval&.dig("msg") == "subnet created"
       private_subnet.update(state: "waiting")
       hop_wait
     end
@@ -68,6 +68,7 @@ class Prog::Vnet::SubnetNexus < Prog::Base
   end
 
   label def wait
+    nap 1000000 if private_subnet.aws?
     when_refresh_keys_set? do
       private_subnet.update(state: "refreshing_keys")
       hop_refresh_keys

@@ -46,6 +46,10 @@ class PrivateSubnet < Sequel::Model
     LocationNameConverter.to_display_name(location)
   end
 
+  def aws?
+    location.start_with?("aws-")
+  end
+
   def path
     "/location/#{display_location}/private-subnet/#{name}"
   end

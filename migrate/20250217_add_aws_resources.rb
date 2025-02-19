@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Sequel.migration do
-  up do
+  change do
     create_table(:customer_aws_account) do
       column :id, :uuid, primary_key: true
       column :aws_account_access_key, :text
